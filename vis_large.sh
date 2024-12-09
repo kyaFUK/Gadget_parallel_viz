@@ -12,7 +12,6 @@ export OMP_NESTED=1
 export OMP_MAX_ACTIVE_LEVELS=2
 export OMP_STACKSIZE=128M
 export OMP_SCHEDULE="static"
-export OMPI_MCA_common_tofu_max_fastmode_procs=32 # add
 
 . /vol0004/apps/oss/spack/share/spack/setup-env.sh
 spack load /gd4btvn # py-h5py@3.10
