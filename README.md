@@ -1,4 +1,4 @@
-# Visualization for Gadget format
+# Fast Visualization for Gadget format
 To visualize Gadget format data of massive SPH simulations in a yt-suite way, this utilizes OpenMP/MPI parallelization, whereas the yt library does not support parallelization.
 
 # Snapshot Sample
