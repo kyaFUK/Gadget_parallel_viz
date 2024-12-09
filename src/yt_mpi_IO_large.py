@@ -5,26 +5,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor
 import matplotlib as mpl
-import subprocess
-
-#from yt.units import mp 
-
-#MPI.Init_thread(MPI.THREAD_MULTIPLE)
-
-# . /vol0004/apps/oss/spack/share/spack/setup-env.sh
-## spack load /qbmpmn2 # python 3.11
-# spack load /tq5kd2o # mpi4py
-# source load .venv/bin/activate
-# export LD_PRELOAD=/usr/lib/FJSVtcs/ple/lib64/libpmix.so # mpi4py実行時に必要
-# mpirun --bind-to core --map-by core -np 16 python yt_mpi_IO.py
+import tomli
 
 # Initialize MPI
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-#target="density"
-target="temperature"
+toml_file="../params/param_large.toml"
+with open(toml_file, "rb") as f:  # "rb"モードで読み込み
+    config = tomli.load(f)
+physics = config["input"]["physics"]
+path = config["input"]["path"]
+fn   = config["input"]["fn"]
+
 
 # Ensure MPI is initialized for thread safety
 
@@ -70,42 +64,53 @@ def read_hdf5_file(file_path):
     
     return density, internal_energy, positions, smoothing_length
 
+# ファイルサイズを人間に読みやすい形式に変換する関数
+def format_size(size):
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} PB"  # サイズが非常に大きい場合
+
 # Function to run 'ls -lhS' to get files sorted by size
 def get_file_sizes_sorted(src):
     try:
-        #print(src + "/asura_fdps_00001.*")
-        #result = subprocess.run(f"ls -lhS {src}asura_fdps_00001.*", capture_output=True, text=True, shell=True)
-        result = subprocess.run(f"ls -lhS {src}", capture_output=True, text=True, shell=True)
-
-        
-        # Parse the output
-        lines = result.stdout.splitlines()
         files_with_size = []
         
-        for line in lines[1:]:  # Skip the first line (total size information)
-            parts = line.split()
-            size = parts[4]  # Size is usually the 5th column in 'ls -lhS' output
-            filename = parts[-1]  # Filename is the last column
-            files_with_size.append((filename, size))
+        # ディレクトリ内のすべてのファイルを再帰的に取得
+        for root, _, files in os.walk(src):
+            for file in files:
+                file_path = os.path.join(root, file)
+                size = os.path.getsize(file_path)  # バイト単位のファイルサイズを取得
+                human_readable_size = format_size(size)  # 人間に読みやすい形式に変換
+                files_with_size.append((file_path, size, human_readable_size))
         
-        return files_with_size
-    except subprocess.CalledProcessError as e:
-        print(f"Error running ls command: {e}")
+        # サイズで降順にソート
+        files_with_size.sort(key=lambda x: x[1], reverse=True)
+        
+        # ファイルパスとフォーマット済みのサイズをリストとして返す
+        return [(file_path, human_readable_size) for file_path, _, human_readable_size in files_with_size]
+    except Exception as e:
+        print(f"Error: {e}")
         return []
 
 # Function to convert human-readable size (like '1K', '100M') to bytes
-def size_in_bytes(size):
-    units = {"K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}
-    if size[-1] in units:
-        return float(size[:-1]) * units[size[-1]]
-    else:
-        return float(size)
+# ファイルサイズをバイト数に変換する関数
+def size_in_bytes(size_str):
+    units = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}
+    
+    # 数字部分と単位部分を分割
+    size, unit = size_str.split()
+    unit = unit.upper()  # 単位を大文字にする
+
+    # 単位をバイト数に変換
+    return float(size) * units[unit]
 
 # Function to load data in parallel within each MPI rank
 # Function to load files in parallel and filter out non-HDF5 files
 def load_files_parallel(file_subset, src):
     # Filter out non-HDF5 files
-    valid_files = [src + file for file in file_subset if file.endswith('.hdf5')]
+    valid_files = [file for file in file_subset if file.endswith('.hdf5')]
 
     # Use ThreadPoolExecutor to parallelize file reading
     with ThreadPoolExecutor() as executor:
@@ -121,7 +126,7 @@ Mproton = 1.67262192369e-24  # Proton mass in grams
 Msolar = 1.989e33
 kpc = 1e3*3.085678e18
 Ggrav=6.67430e-8
-unit_mass = 1.e10*Msolar
+unit_mass = 232441.245422558*Msolar
 unit_leng = kpc
 
 unit_time_G_1 = np.sqrt((unit_leng)**3/(Ggrav*unit_mass))
@@ -129,7 +134,7 @@ unit_time = unit_time_G_1
 unit_velc = unit_leng / unit_time
 unit_eng  = unit_mass * (unit_velc)**2
 unit_spen = unit_eng  / unit_mass
-unit_dens = 404.461303941453 #cm^-3
+unit_dens = 0.00940134892133831 #cm^-3
 
 normalization_constant = unit_spen  # 1e-10 factor can be applied if needed
 gamma = 5.0 / 3.0  # Adiabatic index, change if needed
@@ -229,10 +234,10 @@ def slice_plot_2d(grid, plot_limits, title, save_dir):
 
 # Main processing block
 #src = "/home/hirashima/NAS4Fujii/WLM/ML/noFUV/snapshots/"
-fn=2
-#src='/data/hp120286/u10158/LMCGenIC1024_InitTurb_1e-1/results/snapshots{:05d}/'.format(fn)
-src='/data/hp120286/u10158/LMCFollow_4/results/snapshots{:05d}/'.format(fn)
-
+#fn=1
+#src='/data/hp120286/u10158/MWGenIC9216_InitTurb/results/snapshots{:05d}/'.format(fn)
+#src='/data/hp120286/u10158/MW20GenIC2048/results/snapshots{:05d}/'.format(fn)
+src=path+'snapshots{:05d}/'.format(fn)
 print(src)
 if rank == 0:
     # Get file sizes and sort them by size using 'ls -lhS'
@@ -301,7 +306,7 @@ if target=="temperature":
 # Define the grid and interpolation parameters
 global_grid_size = (800, 800)  # Global grid size (nx, ny)
 #300 Total time taken: 214.17 seconds
-global_grid_limits = [[-5, 5], [-5, 5]]  # Plot region limits (in kpc)
+global_grid_limits = [[-20, 20], [-20, 20]]  # Plot region limits (in kpc)
 
 # Interpolate particle data onto the global grid using SPH kernel
 local_physics_grid, local_weights_grid = sph_interpolate_to_grid(
@@ -336,8 +341,8 @@ if rank == 0:
         target_physics = temperature
         
     # Save the final plot
-    DSTDIR = "./output_plots/4node_{:03d}_".format(fn)
-    slice_plot_2d(normalized_physics_grid, global_grid_limits, label + " Slice in xy-plane (|z| < 1 kpc)_4", DSTDIR)
+    DSTDIR = "./output_plots/MW_{:03d}_".format(fn)
+    slice_plot_2d(normalized_physics_grid, global_grid_limits, label + " Slice in xy-plane (|z| < 1 kpc)", DSTDIR)
 
 # End time measurement
 end_time = MPI.Wtime()

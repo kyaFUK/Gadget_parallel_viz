@@ -18,7 +18,7 @@ spack load /gd4btvn # py-h5py@3.10
 spack load /tq5kd2o # py-mpi4py@3.10
 spack load /zpd2xho # hdf5+mpi@3.10
 spack load /nlg2w4c # py-matplotlib@3.10
-
+spack load /7njflgr # py-tomli
 
 #export LD_PRELOAD=/usr/lib/FJSVtcs/ple/lib64/libpmix.so:/lib64/libc.so.6
 export LD_LIBRARY_PATH=/lib64:$LD_LIBRARY_PATH
@@ -28,5 +28,5 @@ export LD_LIBRARY_PATH=/vol0004/apps/oss/spack-v0.19/opt/spack/linux-rhel8-a64fx
 #echo $LD_PRELOAD
 
 # 実行
-mpirun -n 1544 -stdout-proc ./output.%j/%/1000r/stdout -stderr-proc ./output.%j/%/1000r/stderr python yt_mpi_IO_large.py
+mpirun -n 1544 -stdout-proc ./output.%j/%/1000r/stdout -stderr-proc ./output.%j/%/1000r/stderr python ../src/yt_mpi_IO_large.py
 #mpirun -n 386 -stdout-proc ./output.%j/%/1000r/stdout -stderr-proc ./output.%j/%/1000r/stderr python yt_mpi_IO.py

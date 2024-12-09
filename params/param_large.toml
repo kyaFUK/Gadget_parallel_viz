@@ -1,0 +1,4 @@
+[input]
+physics="density"
+path = "/data/hp120286/u10158/MW20GenIC2048/results/"
+fn = 2

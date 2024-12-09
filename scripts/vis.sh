@@ -18,7 +18,7 @@ spack load /gd4btvn # py-h5py@3.10
 spack load /tq5kd2o # py-mpi4py@3.10
 spack load /zpd2xho # hdf5+mpi@3.10
 spack load /nlg2w4c # py-matplotlib@3.10
-
+spack load /7njflgr # py-tomli
 
 export LD_LIBRARY_PATH=/lib64:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=/vol0004/apps/oss/spack-v0.19/opt/spack/linux-rhel8-a64fx/fj-4.8.1/hdf5-1.12.2-2ildmrbqztubzpo6zhzbnfw7vsbtr7im/lib:$LD_LIBRARY_PATH
@@ -26,4 +26,4 @@ export LD_LIBRARY_PATH=/vol0004/apps/oss/spack-v0.19/opt/spack/linux-rhel8-a64fx
 
 
 # 実行
-mpirun -n 386 python yt_mpi_IO.py
+mpirun -n 386 python ../src/yt_mpi_IO.py
