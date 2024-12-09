@@ -9,4 +9,4 @@ To visualize Gadget format data of massive SPH simulations in a yt-suite way, th
 386 nodes x 1 process 411.69 seconds
 
 ## MW
-35315934 386 nodes x 4 process 425s
+386 nodes x 4 process 425s
