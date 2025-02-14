@@ -19,7 +19,7 @@ physics = config["input"]["physics"]
 path = config["input"]["path"]
 fn   = config["input"]["fn"]
 
-
+target=physics
 # Ensure MPI is initialized for thread safety
 
 #provided = MPI.Query_thread()
@@ -170,7 +170,7 @@ def sph_interpolate_to_grid(positions, values, smoothing_lengths, global_grid_si
     for pos, val, h in zip(positions, values, smoothing_lengths):
         x, y = pos
         h_inv = 1.0 / h
-
+        h = min(h, 0.5 * (xmax - xmin) / nx, 0.5 * (ymax - ymin) / ny) # 係数はもう少し長くしても良いかも
         # Find the grid indices that fall within the smoothing length
         ix_min = max(int((x - h - xmin) / (xmax - xmin) * nx), 0)
         ix_max = min(int((x + h - xmin) / (xmax - xmin) * nx), nx - 1)
@@ -229,7 +229,7 @@ def slice_plot_2d(grid, plot_limits, title, save_dir):
     plt.title(title)
     plt.xlabel("x [kpc]")
     plt.ylabel("y [kpc]")
-    plt.savefig(f"{save_dir}slice_plot_{target}_{title}.png")
+    plt.savefig(f"{save_dir}slice_plot_{target}_{title}.png", bbox_inches='tight', pad_inches=0.1)
     plt.close()
 
 # Main processing block
@@ -265,23 +265,31 @@ file_subset = [sorted_file_list[i] for i in range(rank, len(sorted_file_list), s
 results = load_files_parallel(file_subset, src)
 
 # Extract data from the results
-density = np.concatenate([res[0] for res in results])
-internal_energy = np.concatenate([res[1] for res in results])
-positions = np.concatenate([res[2] for res in results])
-smoothing_lengths = np.concatenate([res[3] for res in results])
+density = np.concatenate([res[0] for res in results]) if results else np.array([])
+internal_energy = np.concatenate([res[1] for res in results]) if results else np.array([])
+positions = np.concatenate([res[2] for res in results]) if results else np.empty((0, 3))  # 2Dにする
+smoothing_lengths = np.concatenate([res[3] for res in results]) if results else np.array([])
 
 if rank==0:
     print("Read Done.")
     
 # Filter the particles by |z| < 1 kpc
-z_limit = 0.5  # 1 kpc for z-axis filtering
+z_limit = 2  # 1 kpc for z-axis filtering
 mask = np.abs(positions[:, 2]) < z_limit
 
-filtered_positions = positions[mask]
-filtered_density = density[mask]
-filtered_internal_energy = internal_energy[mask]
-filtered_smoothing_lengths = smoothing_lengths[mask]
+if positions.shape[0] > 0:  # `positions` にデータがあるか確認
+    mask = np.sqrt(positions[:, 0]**2 + positions[:, 1]**2) < 100
 
+    filtered_positions = positions[mask]
+    filtered_density = density[mask] if density.size > 0 else np.array([])
+    filtered_internal_energy = internal_energy[mask] if internal_energy.size > 0 else np.array([])
+    filtered_smoothing_lengths = smoothing_lengths[mask] if smoothing_lengths.size > 0 else np.array([])
+else:
+    # **空の配列をそのまま代入**
+    filtered_positions = positions
+    filtered_density = density
+    filtered_internal_energy = internal_energy
+    filtered_smoothing_lengths = smoothing_lengths   
 ################
 # Constants for number density calculation
 mu = 0.6 #1.22  # Mean molecular weight for neutral gas, adjust as needed
@@ -340,8 +348,19 @@ if rank == 0:
         label="Temperature"
         target_physics = temperature
         
+    dir_name = "../output_plots/"
+    # Check if the directory exists and create it if it doesn't
+    if not os.path.exists(dir_name):
+        try:
+            os.mkdir(dir_name)
+            print(f"Directory '{dir_name}' created successfully.")
+        except Exception as e:
+            print(f"An error occurred while creating the directory: {e}")
+    else:
+        print(f"Directory '{dir_name}' already exists.")
+
     # Save the final plot
-    DSTDIR = "./output_plots/MW_{:03d}_".format(fn)
+    DSTDIR = dir_name+"MW_{:03d}_".format(fn)
     slice_plot_2d(normalized_physics_grid, global_grid_limits, label + " Slice in xy-plane (|z| < 1 kpc)", DSTDIR)
 
 # End time measurement

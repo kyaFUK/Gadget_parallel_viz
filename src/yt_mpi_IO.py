@@ -151,6 +151,8 @@ def sph_interpolate_to_grid(positions, values, smoothing_lengths, global_grid_si
     for pos, val, h in zip(positions, values, smoothing_lengths):
         x, y = pos
         h_inv = 1.0 / h
+        #h = min(h, 4.0 * (xmax - xmin) / nx, 4.0 * (ymax - ymin) / ny) # 係数はもう少し長くしても良いかも
+        h = min(h, 0.5 * (xmax - xmin) / nx, 0.5 * (ymax - ymin) / ny) # 係数はもう少し長くしても良いかも
 
         # Find the grid indices that fall within the smoothing length
         ix_min = max(int((x - h - xmin) / (xmax - xmin) * nx), 0)
@@ -184,8 +186,8 @@ def slice_plot_2d(grid, plot_limits, title, save_dir):
 
     if target=="density":
         label=r"Density $[\mathrm{cm^{-3}}]$"
-        vmin=1e-3
-        vmax=1e1
+        vmin=1e-2
+        vmax=1e3
         color='viridis'
 
     if target=="temperature":
@@ -196,9 +198,6 @@ def slice_plot_2d(grid, plot_limits, title, save_dir):
         
     # Plot the 2D temperature grid (xy-plane)
     plt.figure(figsize=(15, 15))
-    #print("vmin: {}, vmax: {}".format(vmin,vmax))
-    #print(grid.max(), grid.min())
-    #print(grid)
     plt.imshow(grid.T, extent=[plot_limits[0][0], plot_limits[0][1], 
                                plot_limits[1][0], plot_limits[1][1]],
                norm=mpl.colors.LogNorm(vmin=vmin, vmax=vmax),
@@ -210,14 +209,10 @@ def slice_plot_2d(grid, plot_limits, title, save_dir):
     plt.title(title)
     plt.xlabel("x [kpc]")
     plt.ylabel("y [kpc]")
-    plt.savefig(f"{save_dir}slice_plot_{target}_{title}.png")
+    plt.savefig(f"{save_dir}slice_plot_{target}_{title}.png", bbox_inches='tight', pad_inches=0.1)
     plt.close()
 
 # Main processing block
-#src = "/home/hirashima/NAS4Fujii/WLM/ML/noFUV/snapshots/"
-
-
-#src='/data/hp120286/u10158/LMCGenIC1024_InitTurb_1e-1/results/snapshots{:05d}/'.format(fn)
 src=path+'snapshots{:05d}/'.format(fn)
 
 print(src)
@@ -242,15 +237,16 @@ sorted_file_list = comm.bcast(sorted_file_list, root=0)
 
 # Distribute files by size using modulo to balance workload
 file_subset = [sorted_file_list[i] for i in range(rank, len(sorted_file_list), size)]
-#print(file_subset)
+
 # Each rank loads its own subset of data
 results = load_files_parallel(file_subset, src)
 
 # Extract data from the results
-density = np.concatenate([res[0] for res in results])
-internal_energy = np.concatenate([res[1] for res in results])
-positions = np.concatenate([res[2] for res in results])
-smoothing_lengths = np.concatenate([res[3] for res in results])
+density = np.concatenate([res[0] for res in results]) if results else np.array([])
+internal_energy = np.concatenate([res[1] for res in results]) if results else np.array([])
+positions = np.concatenate([res[2] for res in results]) if results else np.empty((0, 3))  # 2Dにする
+smoothing_lengths = np.concatenate([res[3] for res in results]) if results else np.array([])
+
 
 if rank==0:
     print("Read Done.")
@@ -287,8 +283,13 @@ if target=="temperature":
 
 # Define the grid and interpolation parameters
 global_grid_size = (800, 800)  # Global grid size (nx, ny)
+#global_grid_size = (50, 50)  # Global grid size (nx, ny)
 #300 Total time taken: 214.17 seconds
 global_grid_limits = [[-5, 5], [-5, 5]]  # Plot region limits (in kpc)
+#global_grid_limits = [[-2, 2], [-2, 2]]  # Plot region limits (in kpc)
+#global_grid_limits = [[0.5, 2.5], [0.5, 2.5]]  # Plot region limits (in kpc)
+#global_grid_limits = [[-0.5, 1], [-1, 0.5]]  # Plot region limits (in kpc)
+#global_grid_limits = [[-1, 1], [-1, 1]]  # Plot region limits (in kpc)
 
 # Interpolate particle data onto the global grid using SPH kernel
 local_physics_grid, local_weights_grid = sph_interpolate_to_grid(
@@ -334,8 +335,8 @@ if rank == 0:
         print(f"Directory '{dir_name}' already exists.")
 
     # Save the final plot
-    DSTDIR = dir_name+"4node_{:03d}_".format(fn)
-    slice_plot_2d(normalized_physics_grid, global_grid_limits, label + " Slice in xy-plane (|z| < 1 kpc)_4", DSTDIR)
+    DSTDIR = dir_name+"4node_{:03d}_".format(fn+10)
+    slice_plot_2d(normalized_physics_grid, global_grid_limits, label + " Slice in xy-plane (|z| < 1 kpc)_PreRun_cool_sur", DSTDIR)
 
 # End time measurement
 end_time = MPI.Wtime()
